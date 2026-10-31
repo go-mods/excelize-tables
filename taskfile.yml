@@ -1,0 +1,28 @@
+# Main Taskfile of the project
+# Documentation: https://taskfile.dev
+version: '3'
+
+includes:
+  # Go development: formatting, static analysis, linting, tests and coverage
+  go: ./.task/go.taskfile.yml
+
+  # Go development tools at pinned versions (golangci-lint, editorconfig-checker)
+  go-tools: ./.task/go-tools.taskfile.yml
+
+  # Git hooks: refuses go.mod replace directives towards a local directory
+  hooks: ./.task/hooks.taskfile.yml
+
+tasks:
+  default:
+    desc: "Enables the pre-commit hook and lists the available tasks"
+    cmds:
+      - task: hooks:install
+      - task --list
+    silent: true
+
+  check:
+    desc: "Formats, analyses and tests the code (go:validate then go:test)"
+    cmds:
+      - task: go:validate
+      - task: go:test
+    silent: true

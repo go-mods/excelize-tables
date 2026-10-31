@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary (go test -c)
+*.test
+
+# Coverage
+*.out
+coverage.*
+
+# Go workspace
+go.work
+go.work.sum
+
+# Excel files written by the tests
+*.gen.xlsx
+
+# Task cache
+.task/checksum
+
+# JetBrains: only code style and run configurations are shared
+.idea/*
+!.idea/codeStyles
+!.idea/runConfigurations
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

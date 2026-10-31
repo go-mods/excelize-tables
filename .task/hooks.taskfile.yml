@@ -1,0 +1,112 @@
+# Git hooks of the project
+# Documentation: https://taskfile.dev
+#
+# Prevents committing a go.mod `replace` directive that points to a local directory
+# (../module, ./x, /abs, C:\...): such a reference only works on the machine that wrote it.
+# A `replace` towards another module version remains allowed.
+#
+# Git never installs a hook from a clone: `install` creates the versioned
+# .githooks/pre-commit hook if it is missing and points core.hooksPath to it.
+# It is idempotent and called by the default task of the project.
+# `git commit --no-verify` bypasses the hook: `verify` can also be run by hand.
+#
+# Usage:
+#   task hooks:install          # Creates .githooks/pre-commit if needed and sets core.hooksPath
+#   task hooks:verify           # Checks the staged go.mod files (called by the hook)
+#   task hooks:verify ALL=true  # Checks every tracked go.mod file
+#   task hooks:status           # Prints the hook status in this clone
+version: '3'
+
+vars:
+  HOOKS_DIR: "{{.HOOKS_DIR | default \".githooks\"}}"
+
+tasks:
+
+  default:
+    desc: "Prints the pre-commit hook status in this clone"
+    cmds:
+      - task: status
+    silent: true
+
+  install:
+    desc: "Creates the versioned {{.HOOKS_DIR}}/pre-commit hook if missing and sets core.hooksPath (idempotent)"
+    deps: [check-git]
+    cmds:
+      - |
+        root=$(git rev-parse --show-toplevel)
+        hook="$root/{{.HOOKS_DIR}}/pre-commit"
+        if [ ! -f "$hook" ]; then
+          mkdir -p "$root/{{.HOOKS_DIR}}"
+          printf '%s\n' '#!/bin/sh' \
+            '# Refuses go.mod replace directives that point to a local directory.' \
+            'exec task hooks:verify' > "$hook"
+          chmod +x "$hook"
+          git -C "$root" add --chmod=+x "{{.HOOKS_DIR}}/pre-commit" 2>/dev/null || true
+          echo "✓ Hook created: {{.HOOKS_DIR}}/pre-commit (to be committed)"
+        elif ! grep -q "hooks:verify" "$hook"; then
+          echo "⚠️ {{.HOOKS_DIR}}/pre-commit exists but does not call 'task hooks:verify': add it by hand"
+        fi
+        if [ "$(git -C "$root" config --get core.hooksPath)" != "{{.HOOKS_DIR}}" ]; then
+          git -C "$root" config core.hooksPath "{{.HOOKS_DIR}}"
+          echo "✓ core.hooksPath = {{.HOOKS_DIR}}"
+        fi
+    silent: true
+
+  verify:
+    desc: "Refuses go.mod replace directives towards a local path (staged files, or ALL=true)"
+    deps: [check-git]
+    cmds:
+      - |
+        root=$(git rev-parse --show-toplevel)
+        cd "$root" || exit 1
+        if [ "{{.ALL}}" = "true" ]; then
+          # Every tracked file, as found in the working tree
+          files=$(git ls-files -- 'go.mod' '*/go.mod')
+          read_file() { cat "$1"; }
+        else
+          # Staged files: their content in the index, i.e. what will be committed
+          files=$(git diff --cached --name-only --diff-filter=ACMR -- 'go.mod' '*/go.mod')
+          read_file() { git show ":$1"; }
+        fi
+        failed=0
+        for f in $files; do
+          found=$(read_file "$f" | tr -d '\r' | awk '
+            { sub(/\/\/.*/, "") }
+            /^[ \t]*replace[ \t]*\(/ { block = 1; next }
+            block && /^[ \t]*\)/ { block = 0; next }
+            (block || /^[ \t]*replace[ \t]/) && /=>/ {
+              target = $0; sub(/.*=>[ \t]*/, "", target)
+              if (target ~ /^(\.\.?\/|\.\.?$|\/|[A-Za-z]:[\\\/])/) { gsub(/^[ \t]+|[ \t]+$/, ""); print NR ": " $0 }
+            }')
+          if [ -n "$found" ]; then
+            failed=1
+            echo "❌ $f:"
+            echo "$found" | sed 's/^/     /'
+          fi
+        done
+        if [ "$failed" -ne 0 ]; then
+          echo ""
+          echo "Local replace directives only work on this machine:"
+          echo "  remove them (go mod edit -dropreplace=<module>) before committing"
+          exit 1
+        fi
+        echo "✓ No local replace directive in the checked go.mod files"
+    silent: true
+
+  status:
+    desc: "Prints the pre-commit hook status in this clone"
+    deps: [check-git]
+    cmds:
+      - |
+        root=$(git rev-parse --show-toplevel)
+        current=$(git -C "$root" config --get core.hooksPath || echo "(not set)")
+        echo "📋 core.hooksPath: $current"
+        if [ -f "$root/{{.HOOKS_DIR}}/pre-commit" ]; then echo "✓ {{.HOOKS_DIR}}/pre-commit present"; else echo "❌ {{.HOOKS_DIR}}/pre-commit missing: task hooks:install"; fi
+    silent: true
+
+  check-git:
+    internal: true
+    preconditions:
+      - sh: "git rev-parse --show-toplevel"
+        msg: "This directory is not a Git repository"
+    silent: true

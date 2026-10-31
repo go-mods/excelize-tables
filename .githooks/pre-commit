@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses go.mod replace directives that point to a local directory.
+exec task hooks:verify

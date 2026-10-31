@@ -1,0 +1,165 @@
+# Go development tasks
+# Documentation: https://taskfile.dev
+#
+# Formatting, static analysis, linting (gosec included), tests and coverage.
+# Tools are checked against their pinned version (go-tools:check-*) before use.
+#
+# Usage:
+#   task go:default           # Full validation sequence
+#   task go:validate          # Quick validation (no clean, no tests)
+#   task go:clean             # Removes coverage files and caches
+#   task go:generate          # Runs go generate
+#   task go:fmt               # Formats the code (golangci-lint fmt) and checks EditorConfig
+#   task go:vet               # Static analysis
+#   task go:tidy              # Tidies go.mod and go.sum
+#   task go:lint              # golangci-lint
+#   task go:test              # Unit tests
+#   task go:coverage          # Tests with a console coverage report
+#   task go:coverage-report   # Tests with an HTML coverage report
+#   task go:test-race         # Tests with the race detector (optional, C compiler required)
+#   task go:update            # Updates the dependencies
+version: '3'
+
+tasks:
+
+  default:
+    desc: "Runs the full validation sequence: clean, generate, format, vet, tidy, lint and test"
+    cmds:
+      - task: clean
+      - task: generate
+      - task: fmt
+      - task: vet
+      - task: tidy
+      - task: lint
+      - task: test
+    silent: true
+
+  validate:
+    desc: "Runs the quick validation sequence, without cleaning nor testing"
+    cmds:
+      - task: generate
+      - task: fmt
+      - task: vet
+      - task: tidy
+      - task: lint
+    silent: true
+
+  clean:
+    desc: "Removes coverage files, the task checksums and the Go caches"
+    cmds:
+      - echo "🔹 Cleaning..."
+      - rm -f coverage.*
+      - rm -rf .task/checksum
+      - go clean
+      - go clean --cache
+    silent: true
+
+  generate:
+    desc: "Runs go generate on every package"
+    cmds:
+      - echo "🔹 Generating code..."
+      - go generate ./...
+    silent: true
+
+  fmt:
+    desc: "Formats the code with golangci-lint fmt (formatters of .golangci.yml) and checks EditorConfig"
+    sources:
+      - "**/*.go"
+      - .golangci.yml
+    deps: [":go-tools:check-golangci-lint", ":go-tools:check-editorconfig-checker"]
+    cmds:
+      - echo "🔹 Formatting..."
+      - golangci-lint fmt ./...
+      - editorconfig-checker -exclude ".idea|.vscode"
+    silent: true
+
+  vet:
+    desc: "Runs go vet to detect common mistakes"
+    sources:
+      - "**/*.go"
+    cmds:
+      - echo "🔹 Running go vet..."
+      - go vet ./...
+    silent: true
+
+  tidy:
+    desc: "Tidies go.mod and go.sum"
+    cmds:
+      - echo "🔹 Tidying dependencies..."
+      - go mod tidy
+    silent: true
+
+  lint:
+    desc: "Checks the code with golangci-lint"
+    sources:
+      - "**/*.go"
+      - .golangci.yml
+    deps: [":go-tools:check-golangci-lint"]
+    cmds:
+      - echo "🔹 Linting..."
+      - golangci-lint run ./...
+    silent: true
+
+  test:
+    desc: "Runs the unit tests"
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    cmds:
+      - echo "🔹 Running tests..."
+      - go test -parallel 1 ./...
+    silent: true
+
+  test-race:
+    desc: "Runs the tests with the race detector (optional: cgo and a C compiler are required)"
+    env:
+      CGO_ENABLED: "1"
+    preconditions:
+      - sh: "command -v gcc"
+        msg: "The race detector requires a C compiler (gcc) in the PATH"
+    cmds:
+      - echo "🔹 Running tests with the race detector..."
+      - go test -race ./...
+    silent: true
+
+  coverage:
+    desc: "Prints the coverage per function and the total coverage"
+    aliases: [test-coverage]
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    cmds:
+      - go test ./... -coverprofile=coverage.out -covermode=atomic
+      - echo ""
+      - go tool cover -func=coverage.out
+      - echo ""
+      - go tool cover -func=coverage.out | grep total | awk '{print "Total coverage:", $3}'
+      - rm -f coverage.out
+    silent: true
+
+  coverage-report:
+    desc: "Runs the tests and generates coverage.out and coverage.html"
+    aliases: [coverage-html, test-coverage-report]
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - coverage.out
+      - coverage.html
+    cmds:
+      - echo "🔹 Generating coverage reports..."
+      - go test ./... -covermode=atomic -coverpkg=./... -coverprofile coverage.out
+      - go tool cover -html coverage.out -o coverage.html
+      - echo "✓ Coverage reports generated - coverage.out and coverage.html"
+    silent: true
+
+  update:
+    desc: "Updates the dependencies to their latest compatible versions"
+    cmds:
+      - echo "🔹 Updating dependencies..."
+      - go get -u ./...
+      - task: tidy
+    silent: true

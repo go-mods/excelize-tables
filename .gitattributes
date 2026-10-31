@@ -1,0 +1,9 @@
+# LF line endings for every text file, whatever core.autocrlf is set to
+# (.editorconfig enforces end_of_line = lf and editorconfig-checker verifies it)
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.xlsx binary

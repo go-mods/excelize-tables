@@ -21,20 +21,20 @@ The module requires Go 1.25 or later and excelize v2.11.0 or later.
 
 ```go
 import (
-	"github.com/xuri/excelize/v2"
+    "github.com/xuri/excelize/v2"
 
-	tables "github.com/go-mods/excelize-tables"
+    tables "github.com/go-mods/excelize-tables"
 )
 
 f, err := excelize.OpenFile("articles.xlsx")
 if err != nil {
-	return err
+    return err
 }
 defer f.Close()
 
 // Rows were written below the table "Articles", which covered A1:D8.
 if err := tables.Resize(f, "Articles", "A1:D20"); err != nil {
-	return err
+    return err
 }
 return f.Save()
 ```
@@ -51,18 +51,18 @@ it holds is kept, including what excelize does not model:
 - calculated column formulas, column formats and totals row functions;
 - auto filter settings of the columns that stay in the table;
 - the table style, extensions and namespace prefixes written by Excel or by
-  other tools.
+    other tools.
 
 ### What is updated in the worksheet
 
 - **Added columns** take the text of their header cell as name, or `ColumnN`
-  when that cell is empty or the name is already used; the name is written back
-  to the header cell.
+    when that cell is empty or the name is already used; the name is written back
+    to the header cell.
 - **The totals row** moves to the last row of the new range and the row it
-  leaves is cleared.
+    leaves is cleared.
 - **Added data rows** get the calculated column formulas in their empty cells,
-  and the style of the last original data row in their cells without a style.
-  Values written before the call are never overwritten.
+    and the style of the last original data row in their cells without a style.
+    Values written before the call are never overwritten.
 
 ### Errors
 
@@ -79,12 +79,12 @@ it holds is kept, including what excelize does not model:
 ## Limitations
 
 - Data validations, conditional formats and comments are not extended to the
-  new range.
+    new range.
 - Formulas referring to a column removed from the table are not rewritten.
 - When a table with a totals row shrinks, the row receiving the totals loses
-  its data.
+    its data.
 - Workbooks saved in the "Strict Open XML" format are not supported: excelize
-  cannot save them back in a form that Excel opens.
+    cannot save them back in a form that Excel opens.
 
 ## Development
 
